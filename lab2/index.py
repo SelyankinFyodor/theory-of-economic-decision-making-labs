@@ -1,7 +1,7 @@
 import numpy as np
 import math
 from matplotlib import pyplot as plt
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, StandardScaler
 from sklearn import datasets
 
 
@@ -80,7 +80,7 @@ def german_process():
 			A[j][col_i] = matrix[i][cols[j]]
 		col_i += 1
 		classes.append(matrix[i][p])
-	A = normalize(A)
+	A = StandardScaler().fit_transform(A.transpose()).transpose()
 	eig_value, eig_vectors = np.linalg.eig(np.cov(A))
 	Z = eig_vectors.T.dot(A)
 	print(np.cov(Z))
@@ -100,16 +100,14 @@ def german_process():
 	print()
 	[print("{:.5f}".format(f), end=' ') for f in sorted(d_z, key=lambda x: -x)]
 	print()
-	[print("{:.5f}".format(f), end=' ') for f in d_z]
-	print()
-	[print("{:.5f}".format(f), end=' ') for f in d_x]
+	print(sum(d_z))
 	plt.title('данные german')
 	plt.show()
 
 
 def iris_process():
 	iris = datasets.load_iris()
-	A = normalize(np.array(iris.data[:, :]).transpose())
+	A = StandardScaler().fit_transform(X=np.array(iris.data[:, :])).transpose()
 	classes = iris.target
 	eig_value, eig_vectors = np.linalg.eig(np.cov(A))
 	Z = eig_vectors.T.dot(A)
