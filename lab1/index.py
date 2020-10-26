@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from bayes import BayesClassifier as BC
+from lab1.bayes import BayesClassifier as BC
 
 
 def main1():
