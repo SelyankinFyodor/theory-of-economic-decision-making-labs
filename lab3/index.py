@@ -173,12 +173,12 @@ def main4(withPCA=False):
 	X = matrix[:, :24]
 	y = 2 * matrix[:, 24] - 3
 	X, y = shuffle(X, y)
-	c_sample = StandardScaler().fit_transform(X)
+	c_sample = StandardScaler().fit_transform(X.transpose()).transpose()
 	if withPCA:
-		eig_value, eig_vectors = np.linalg.eig(np.cov(c_sample))
-		Z = eig_vectors.T.dot(c_sample).transpose()
-		Z = Z[:, :3]
-		c_sample = StandardScaler().fit_transform(Z)
+		eig_value, eig_vectors = np.linalg.eig(np.cov(c_sample.transpose()))
+		Z = eig_vectors.T.dot(c_sample.transpose())
+		Z = Z[:3, :]
+		c_sample = StandardScaler().fit_transform(Z.transpose())
 	X_train, X_test, y_train, y_test = train_test_split(c_sample, y, test_size=0.2, random_state=0)
 	best = {'sigma': 1, 'C': 1, 'er_p': 1}
 	for C in [1, 10, 100, 1000]:
@@ -218,4 +218,6 @@ if __name__ == "__main__":
 	# main1()
 	# main2()
 	# main3()
-	main4(withPCA=True)
+	# main4()
+	# main4(withPCA=True)
+	main5()
