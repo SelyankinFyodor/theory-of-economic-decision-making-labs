@@ -23,7 +23,7 @@ def svm(train, classes, kern, C, threshold, part=3):
 	a = np.ravel(solver.qp(P, q, G, h, A, b)['x'])
 	sv = a > threshold
 	ind = np.arange(len(a))[sv]
-	if part == 1 or part == 2:
+	if part == 1 or part == 2 or part == 4:
 		a = a[sv]
 		sv_train = train[sv]
 		sv_classes = classes[sv]
@@ -51,3 +51,14 @@ def decision_func(x1, x2, n_samples, a, y, kern):
 	for i in range(n_samples):
 		res += a[i] * y[i] * kern(x1[i], x2)
 	return res
+
+
+def predict_simple(x, w, b):
+	return 1 if w.dot(x) + b > 0 else -1
+
+
+def predict(sample, w, b):
+	classes = []
+	for x in sample:
+		classes.append((1 if w.dot(x) + b > 0 else -1))
+	return np.array(classes)

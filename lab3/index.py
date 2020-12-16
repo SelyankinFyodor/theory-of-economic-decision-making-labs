@@ -1,7 +1,11 @@
-import numpy as np
 from matplotlib import pyplot as plt
 import math
-from Lab3.svm import svm, decision_func
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+
+from lab3.svm import svm, decision_func, predict
 
 
 def lin_kern(x, y):
@@ -9,11 +13,25 @@ def lin_kern(x, y):
 
 
 def poly_kern(x, y):
-	return (1+x.dot(y)).dot((1+x.dot(y))).dot((1+x.dot(y)))
+	return (1 + x.dot(y)).dot((1 + x.dot(y))).dot((1 + x.dot(y)))
 
 
-def gauss_kernel(x1, x2, sigma=1):
-	return math.exp(-np.linalg.norm(x1-x2) / (2 * sigma ** 2))
+def get_gauss(sigma=1):
+	return lambda x1, x2: math.exp(-np.linalg.norm(x1 - x2) / (2 * sigma ** 2))
+
+
+def cv(X, y, parts=5):
+	part_len = X.shape[0] // parts
+	yield X[part_len:, :], X[:part_len, :], y[part_len:], y[:part_len]
+
+	for i in range(1, parts - 1):
+		train_start = i * part_len
+		train_end = (i + 1) * part_len
+		yield np.concatenate((X[:train_start, :], X[train_end:, :]), axis=0), \
+		      X[train_start:train_end, :], \
+		      np.concatenate((y[:train_start], y[train_end:]), axis=0), \
+		      y[train_start:train_end]
+	yield X[:len(X) - part_len, :], X[len(X) - part_len:, :], y[:len(y) - part_len], y[len(y) - part_len:]
 
 
 def main1():
@@ -90,8 +108,8 @@ def main2():
 		plt.scatter(A12.transpose()[:, 0], A12.transpose()[:, 1], c=classes, marker='.', cmap='coolwarm',
 			label="the elements of a sample")
 		plt.plot(x, y, 'k-')
-		plt.plot(x, y_border_1, c+'-.')
-		plt.plot(x, y_border_2, c+'-.')
+		plt.plot(x, y_border_1, c + '-.')
+		plt.plot(x, y_border_2, c + '-.')
 		plt.scatter(sv_x[:, 0], sv_x[:, 1], c=sv_y, marker='x', cmap='coolwarm', label="support vectors")
 		plt.xlabel('x')
 		plt.ylabel('y')
@@ -106,7 +124,8 @@ def main2():
 		plt.plot(x, data['y'], 'k-')
 		plt.plot(x, data['b1'], c + '-.')
 		plt.plot(x, data['b2'], c + '-.')
-		plt.scatter(data['sv_x'][:, 0], data['sv_x'][:, 1], c=data['sv_y'], marker='x', cmap='coolwarm', label="support vectors")
+		plt.scatter(data['sv_x'][:, 0], data['sv_x'][:, 1], c=data['sv_y'], marker='x', cmap='coolwarm',
+			label="support vectors")
 	plt.xlabel('x')
 	plt.ylabel('y')
 	plt.title(f'bad separated data')
@@ -124,7 +143,7 @@ def main3():
 	A = np.random.multivariate_normal(m1, cov, size)
 	classes = np.array([-1.0 if (A[i][0] > 0) ^ (A[i][1] > 0) else 1.0 for i in range(size)])
 	for C in [1, 10, 100, 1000]:
-		alpha, sv_x, sv_classes = svm(train=A, classes=classes, kern=gauss_kernel, C=C,
+		alpha, sv_x, sv_classes = svm(train=A, classes=classes, kern=get_gauss(), C=C,
 			threshold=1e-3)
 		h = .1
 		x_min, x_max = A[:, 0].min() - .5, A[:, 0].max() + .5
@@ -137,7 +156,7 @@ def main3():
 
 		z_grid = np.zeros(x_grid.shape[0])
 		for i in range(x_grid.shape[0]):
-			z_grid[i] = decision_func(x1=A, x2=xy[i], a=alpha, n_samples=size, y=classes, kern=gauss_kernel)
+			z_grid[i] = decision_func(x1=A, x2=xy[i], a=alpha, n_samples=size, y=classes, kern=get_gauss())
 
 		plt.figure(1)
 		Z = z_grid.reshape(xx.shape)
@@ -149,8 +168,46 @@ def main3():
 		plt.show()
 
 
-def main4():
-	return
+def main4(withPCA=False):
+	matrix = np.loadtxt('../data/german.data-numeric')
+	X = matrix[:, :24]
+	y = 2 * matrix[:, 24] - 3
+	X, y = shuffle(X, y)
+	c_sample = StandardScaler().fit_transform(X)
+	if withPCA:
+		eig_value, eig_vectors = np.linalg.eig(np.cov(c_sample))
+		Z = eig_vectors.T.dot(c_sample).transpose()
+		Z = Z[:, :3]
+		c_sample = StandardScaler().fit_transform(Z)
+	X_train, X_test, y_train, y_test = train_test_split(c_sample, y, test_size=0.2, random_state=0)
+	best = {'sigma': 1, 'C': 1, 'er_p': 1}
+	for C in [1, 10, 100, 1000]:
+		for sigma in [1, 10, 100]:
+			er_av = []
+			for X_cv_train, X_cv_test, y_cv_train, y_cv_test in cv(X_train, y_train, parts=4):
+				a, ind, w, b, sv_train, sv_classes = \
+					svm(X_cv_train, y_cv_train, kern=get_gauss(sigma), C=C, part=4, threshold=1e-3)
+				predicted_classes = predict(X_cv_test, w, b)
+				errors = np.count_nonzero(predicted_classes != y_cv_test)
+				error_probability = errors / y_cv_test.shape[0]
+				print(f"c={C} sigma={sigma} error={error_probability}")
+				er_av += [error_probability]
+			ave = np.average(er_av)
+			print(f"c={C} sigma={sigma} error={ave}")
+			if ave < best['er_p']:
+				best = {
+					'sigma': sigma,
+					'C': C,
+					'er_p': ave
+				}
+	print(f"best: c={best['C']} sigma={best['sigma']} error={best['er_p']}")
+	a, ind, w, b, sv_train, sv_classes = \
+		svm(X_train, y_train, kern=get_gauss(best['sigma']), C=best['C'], part=4, threshold=1e-3)
+	predicted_classes = predict(X_test, w, b)
+	errors = np.count_nonzero(predicted_classes != y_test)
+	error_probability = errors / y_test.shape[0]
+	print(errors)
+	print(error_probability)
 
 
 def main5():
@@ -161,4 +218,4 @@ if __name__ == "__main__":
 	# main1()
 	# main2()
 	# main3()
-	main4()
+	main4(withPCA=True)
