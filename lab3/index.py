@@ -1,4 +1,5 @@
 from matplotlib import pyplot as plt
+import matplotlib.cm as cm
 import math
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -160,11 +161,14 @@ def main3():
 
 		plt.figure(1)
 		Z = z_grid.reshape(xx.shape)
-		plt.contourf(xx, yy, Z, alpha=.8)
-		plt.scatter(A[:, 0], A[:, 1], c=classes, marker='.', cmap='coolwarm')
-		plt.scatter(sv_x[:, 0], sv_x[:, 1], c=sv_classes, marker='x', cmap='coolwarm')
-		plt.title(f"C={C}")
-		plt.grid(True)
+		fig, ax = plt.subplots()
+		CS = ax.contour(xx, yy, Z, 0, alpha=.8,  cmap=cm.gray)
+		ax.clabel(CS, inline=1, fontsize=7)
+		ax.set_title('Simplest default with labels')
+		ax.scatter(A[:, 0], A[:, 1], c=classes, marker='.', cmap='coolwarm')
+		ax.scatter(sv_x[:, 0], sv_x[:, 1], c=sv_classes, marker='x', cmap='coolwarm')
+		ax.set_title(f"C={C}")
+		ax.grid(True)
 		plt.show()
 
 
@@ -210,14 +214,52 @@ def main4(withPCA=False):
 	print(error_probability)
 
 
-def main5():
-	return
+def main5(withPCA=False):
+	matrix = np.loadtxt('../data/heart.dat')
+	X = matrix[:, :13]
+	y = 2 * matrix[:, 13] - 3
+	X, y = shuffle(X, y)
+	c_sample = StandardScaler().fit_transform(X.transpose()).transpose()
+	if withPCA:
+		eig_value, eig_vectors = np.linalg.eig(np.cov(c_sample.transpose()))
+		Z = eig_vectors.T.dot(c_sample.transpose())
+		c_sample = StandardScaler().fit_transform(Z.transpose())
+	X_train, X_test, y_train, y_test = train_test_split(c_sample, y, test_size=0.2, random_state=0)
+	best = {'sigma': 1, 'C': 1, 'er_p': 1}
+	for C in [1, 10, 100, 1000]:
+		for sigma in [1, 10, 100]:
+			er_av = []
+			for X_cv_train, X_cv_test, y_cv_train, y_cv_test in cv(X_train, y_train, parts=4):
+				a, ind, w, b, sv_train, sv_classes = \
+					svm(X_cv_train, y_cv_train, kern=get_gauss(sigma), C=C, part=4, threshold=1e-3)
+				predicted_classes = predict(X_cv_test, w, b)
+				errors = np.count_nonzero(predicted_classes != y_cv_test)
+				error_probability = errors / y_cv_test.shape[0]
+				print(f"c={C} sigma={sigma} error={error_probability}")
+				er_av += [error_probability]
+			ave = np.average(er_av)
+			print(f"c={C} sigma={sigma} error={ave}")
+			if ave < best['er_p']:
+				best = {
+					'sigma': sigma,
+					'C': C,
+					'er_p': ave
+				}
+	print(f"best: c={best['C']} sigma={best['sigma']} error={best['er_p']}")
+	a, ind, w, b, sv_train, sv_classes = \
+		svm(X_train, y_train, kern=get_gauss(best['sigma']), C=best['C'], part=4, threshold=1e-3)
+	predicted_classes = predict(X_test, w, b)
+	errors = np.count_nonzero(predicted_classes != y_test)
+	error_probability = errors / y_test.shape[0]
+	print(errors)
+	print(error_probability)
 
 
 if __name__ == "__main__":
-	# main1()
-	# main2()
-	# main3()
-	# main4()
-	# main4(withPCA=True)
+	main1()
+	main2()
+	main3()
+	main4()
+	main4(withPCA=True)
 	main5()
+	main5(withPCA=True)
